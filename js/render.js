@@ -442,12 +442,13 @@ export function renderExpedition() {
 
     if (otherActions.length > 0 || camActions.length > 0) {
       html += '<div class="actions">';
-      otherActions.forEach(a => {
-        const avail = checkActionAvailable(a);
-        let cls = 'action-btn';
-        const tip = avail.reason ? `data-tooltip="${avail.reason}"` : '';
-        html += `<button class="${cls}${!avail.ok ? ' locked' : ''}" ${avail.ok ? '' : 'disabled'} ${tip} onclick="performAction('${a.id}',${a.cost},'${enc.id}')">${a.label} (${a.cost} ОД)${a.req ? ' 🔒' : ''}</button>`;
-      });
+    otherActions.forEach(a => {
+  const avail = checkActionAvailable(a);
+  const tip = avail.reason ? `data-tooltip="${avail.reason}"` : '';
+  const tipClass = (avail.isError && !avail.ok) ? 'tooltip-error' : '';
+  const cls = `action-btn ${tipClass} ${!avail.ok ? 'locked' : ''}`;
+  html += `<button class="${cls}" ${avail.ok ? '' : 'disabled'} ${tip} onclick="performAction('${a.id}',${a.cost},'${enc.id}')">${a.label} (${a.cost} ОД)${a.req ? ' 🔒' : ''}</button>`;
+});
       camActions.forEach(a => {
         const avail = checkActionAvailable(a);
         let cls = 'action-btn';

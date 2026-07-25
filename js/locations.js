@@ -208,15 +208,7 @@ export function getLoc1() {
       ],
       discount: false, joint: false, patternDissonance: false
     },
-    { id: 'trap_tree', label: 'Фотоловушка', cost: 1, req: { item: 'camtrap', consume: true }, scaleType: 'expansion', ecosystem: false,
-      effect: [
-        { type: 'addScale', scale: 'expansion', amount: 1 },
-        { type: 'collectData', actionId: 'trap_tree', amount: 4 },
-        { type: 'setTrapped', loc: 'loc1' },
-        { type: 'log', text: 'Ловушка установлена.' }
-      ],
-      discount: false, joint: false, patternResonance: false
-    },
+    
     { id: 'collect_food1', label: 'Собрать съедобную кору', cost: 1, req: { linkIntact: ['tree_mushrooms', 'river_tree'], resourceLoc: 'loc1' }, scaleType: 'expansion', ecosystem: false,
       effect: [
         { type: 'addFood', amount: 1 },
@@ -226,6 +218,43 @@ export function getLoc1() {
       discount: false, joint: false, patternResonance: false
     }
   ];
+
+  // Фотоловушка: установка (если ещё не стоит)
+  if (!state.trappedLocations.loc1) {
+    actions.push({
+      id: 'set_camtrap_loc1',
+      label: 'Установить фотоловушку',
+      cost: 1,
+      req: { item: 'camtrap', consume: true, resourceLoc: 'camtrap_loc1' },
+      scaleType: 'expansion',
+      ecosystem: false,
+      category: 'observe',
+      effect: [
+        { type: 'setTrapped', loc: 'loc1' },
+        { type: 'consumeItem', itemId: 'camtrap' },
+        { type: 'log', text: 'Фотоловушка установлена на Хвоще.' }
+      ],
+      discount: false, joint: false, patternResonance: false
+    });
+  }
+
+  // Фотоловушка: снятие (если стоит, но не в этом цикле)
+  if (state.trappedLocations.loc1 && !state.trapJustSet.loc1) {
+    actions.push({
+      id: 'retrieve_camtrap_loc1',
+      label: 'Снять фотоловушку',
+      cost: 0,
+      req: null,
+      scaleType: 'expansion',
+      ecosystem: false,
+      category: 'observe',
+      effect: [
+        { type: 'retrieveCamtrap', loc: 'loc1' },
+        { type: 'log', text: 'Фотоловушка снята.' }
+      ],
+      discount: false, joint: false, patternResonance: false
+    });
+  }
 
   // Совместные действия (пока оставим как есть, чтобы не усложнять)
   const joint = getRelForGroup() >= 3 ? [

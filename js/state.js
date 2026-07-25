@@ -106,10 +106,10 @@ export function actionChangesObject(actionId){
   const changing=['cut_tree','poison_tree','kill_bird','burn_mush','burn_grass','end_suffering','finish','pick_flowers','collect','exterminate'];
   return changing.includes(actionId);
 }
-export function getTooltip(action){
-  if(!action) return '';
-  let p=[];
-  if(action.req){
+export function getTooltip(action) {
+  if (!action) return '';
+  const p = [];
+  if (action.req) {
     if (typeof action.req === 'string') {
       p.push('Требуется: ' + action.req);
     } else {
@@ -122,14 +122,10 @@ export function getTooltip(action){
         if (action.req.charge) p.push('(заряд)');
       }
       if (action.req.trait) p.push('Трейт: ' + action.req.trait);
-      if (action.req.linkIntact) p.push('Связь должна быть цела');
-      if (action.req.linkBroken) p.push('Связь должна быть разрушена');
-      if (action.req.tierMin) p.push('Цикл ≥ ' + action.req.tierMin);
     }
   }
-  if(action.discount) p.push('Скидка -1 ОД');
-  if(action.joint) p.push('Совместное (отношения ≥ +3)');
-  if(action.ecosystem) p.push('Повлияет на экосистему');
+  if (action.discount) p.push('Скидка -1 ОД');
+  if (action.joint) p.push('Совместное (отношения ≥ +3)');
   return p.join(' • ');
 }
 
@@ -193,19 +189,35 @@ export function checkRequirements(action) {
 
   return true;
 }
-export function checkActionAvailable(action){
-  if(!state.activeChar) return {ok:false,reason:'Выберите персонажа'};
-  if(action.joint && !canDoJointAction()) return {ok:false,reason:'Напарник без ОД'};
-  if(action.joint && getRelForGroup()<JOINT_REL_THRESHOLD) return {ok:false,reason:'Нужны отношения ≥ +' + JOINT_REL_THRESHOLD};
-if (typeof action.check === 'function') {
-  if (!action.check()) return {ok:false, reason: 'Нет нужного предмета или трейта'};
-} else {
-  if (!checkRequirements(action)) return {ok:false, reason: 'Нет нужного предмета или трейта'};
-}
-  if(getActiveOd()<action.cost+state.extraOdCost) return {ok:false,reason:'Недостаточно ОД'};
-  if(state.actionsThisStep.includes(action.id)&&actionChangesObject(action.id)) return {ok:false,reason:'Объект уже изменён'};
-const nonRepeat=['touch_tree','watch_bird','watch_bees','pray_mush','calm_bird','study_mush','observe_tree','observe_tree2','biosample_tree','biosample_flowers','biosample_mush','biosample_bird','avoid'];  if(nonRepeat.includes(action.id) && state.actionsThisLocation.some(al=>al.id===action.id)) return {ok:false,reason:'Уже выполнено на этой локации'};
-  return {ok:true,reason:getTooltip(action)};
+export function checkActionAvailable(action) {
+  if (!state.activeChar) return { ok: false, reason: 'Выберите персонажа' };
+  if (action.joint && !canDoJointAction()) return { ok: false, reason: 'Напарник без ОД' };
+  if (action.joint && getRelForGroup() < JOINT_REL_THRESHOLD) return { ok: false, reason: 'Нужны отношения ≥ +' + JOINT_REL_THRESHOLD };
+
+  // Проверка на однократное выполнение
+  const nonRepeat = [
+    'touch_tree', 'watch_bird', 'watch_bees', 'pray_mush', 'calm_bird',
+    'study_mush', 'observe_tree', 'observe_tree2',
+    'biosample_tree', 'biosample_flowers', 'biosample_mush', 'biosample_bird',
+    'avoid', 'avoid_bugs',
+    'set_camtrap_loc1', 'set_camtrap_loc3', 'set_camtrap_loc4',
+    'observe_roots_tree', 'observe_water_bugs'
+  ];
+  if (nonRepeat.includes(action.id) && state.actionsThisLocation.some(al => al.id === action.id)) {
+    return { ok: false, reason: 'Уже выполнено на этой локации' };
+  }
+
+  // Проверка требований
+  if (typeof action.check === 'function') {
+    if (!action.check()) return { ok: false, reason: getTooltip(action), isError: true };
+  } else {
+    if (!checkRequirements(action)) return { ok: false, reason: getTooltip(action), isError: true };
+  }
+
+  if (getActiveOd() < action.cost + state.extraOdCost) return { ok: false, reason: 'Недостаточно ОД' };
+  if (state.actionsThisStep.includes(action.id) && actionChangesObject(action.id)) return { ok: false, reason: 'Объект уже изменён' };
+
+  return { ok: true, reason: getTooltip(action) };
 }
 export function getNodeIcon(locId){ const map={loc1:'tree_mushrooms',loc2:'flowers_bees',loc3:'mush_bird',loc4:'bird_bugs'}; const lk=state.links[map[locId]]; if(!lk) return ''; if(!lk.seenA&&!lk.seenB) return ''; if(!lk.discovered) return '👁️'; return lk.intact?'🌿':'🔥'; }
 export function getRelForGroup(){ if(state.selectedExpedition.length<2) return 0; return getRel(state.selectedExpedition[0],state.selectedExpedition[1]); }

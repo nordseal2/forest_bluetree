@@ -116,7 +116,7 @@ export function executeAction(action) {
       case 'setResourceCollected':
         state.resourceCollectedThisRoute[eff.loc] = true;
         break;
-      case 'setTrapped':
+            case 'setTrapped':
         state.trappedLocations[eff.loc] = true;
         state.trapJustSet[eff.loc] = true;
         break;
@@ -132,7 +132,7 @@ export function executeAction(action) {
       case 'setFlowersRegrow':
         state._flowersRegrow = eff.cycle;
         break;
-              case 'consumeItem':
+      case 'consumeItem':
         useConsumable(eff.itemId);
         break;
       case 'setMushroomRegrow':
@@ -153,6 +153,22 @@ export function executeAction(action) {
       case 'scheduleEcosystemChange':
         if (!state._pendingEcosystemChanges) state._pendingEcosystemChanges = {};
         state._pendingEcosystemChanges[eff.key] = eff.value;
+        break;
+      case 'consumeItem':
+        useConsumable(eff.itemId);
+        break;
+
+      case 'retrieveCamtrap':
+        state.trappedLocations[eff.loc] = false;
+        const existingCam = state.inventory.find(i => i.id === 'camtrap');
+        if (existingCam) {
+          existingCam.count++;
+        } else {
+          state.inventory.push({ id: 'camtrap', name: 'Фотоловушка', tags: ['инструмент','наблюдение'], inGeneral: true, count: 1 });
+        }
+        collectData('retrieve_camtrap', 4);
+        addLog('Фотоловушка снята. Данные получены.');
+        window.render();
         break;
     }
   });
