@@ -90,13 +90,13 @@ export function executeAction(action) {
       case 'changeEcosystem':
         state.ecosystem[eff.key] = eff.value;
         break;
-            case 'breakLink':
+      case 'breakLink':
         state.links[eff.linkId].intact = false;
         state.links[eff.linkId].discovered = true;
-        // Дополнительно: при разрыве bird_bugs разрываем и bugs_river
-        if (eff.linkId === 'bird_bugs') {
-          state.links.bugs_river.intact = false;
-          state.links.bugs_river.discovered = true;
+                if (eff.linkId === 'bird_bugs') {
+          state.riverState = 'muddy';
+          state.links.river_tree.intact = false;   // <-- добавить
+          addJournalEntry('Вода в ручье помутнела из-за нашествия жуков.', 'info');
         }
         updateJournalLinks();
         checkHarmonyHint();
@@ -127,7 +127,6 @@ export function executeAction(action) {
         state.riverState = eff.value;
         // Обновляем связь Ручей → Хвощ: цела, только если вода чистая
         state.links.river_tree.intact = (state.riverState === 'clean');
-        state.links.river_tree.discovered = true;
         updateJournalLinks();
         break;
       case 'setFlowersRegrow':
@@ -416,6 +415,49 @@ export function processEveningData() {
   }
 }
 
+export function processEveningFood() {
+  // Сброс голода у всех, кого накормили
+  state.persons.forEach(p => {
+    if (p.status && p.status.includes('Голод')) {
+      p.status = null;
+      p.maxOd = Math.min(7, p.baseOd);
+      p.od = Math.min(p.od, p.maxOd);
+    }
+  });
+
+  const foodBefore = state.baseResources.food;
+  const eaten = Math.min(foodBefore, 3);
+  state.baseResources.food -= eaten;
+
+  let hungryPeople = [];
+
+  for (let i = 0; i < state.persons.length; i++) {
+    if (i >= eaten) {
+      const hungry = state.persons[i];
+      hungry.status = 'Голод (-1 ОД)';
+      hungry.maxOd = Math.max(1, hungry.baseOd - 1);
+      hungry.od = Math.min(hungry.od, hungry.maxOd);
+      hungryPeople.push(hungry.name);
+      addJournalEntry(`${hungry.name} голодает. -1 ОД на завтра.`, 'warning');
+    }
+  }
+
+  // Отдых на базе
+  if (state._restedPerson) {
+    const p = getPerson(state._restedPerson);
+    if (p) {
+      const bonus = p.status && p.status.includes('Голод') ? 1 : 2;
+      p.maxOd = Math.min(7, p.maxOd + bonus);
+      p.od = Math.min(p.maxOd, p.od + bonus);
+      addLog(`${p.name} отдохнул на базе (+${bonus} ОД).`);
+    }
+    state._restedPerson = null;
+  }
+
+  // Сохраняем количество еды для рендера
+  state._lastEveningFood = { before: foodBefore, eaten, hungry: hungryPeople };
+}
+
 export function endNight() {
   state.persons.forEach(p => {
     let newMax = p.baseOd;
@@ -439,6 +481,7 @@ export function endNight() {
     }
     state._pendingEcosystemChanges = {};
   }
+  processEveningFood();
   processEveningData();
   state.previousScales = { ...state.scales };
   state.selectedExpedition = []; state.routeProgress = 0; state.locationDone = false;

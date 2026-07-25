@@ -56,6 +56,8 @@ export const state = {
   dreamsUsed: [], nightReaction: '', 
   usedDialogs: [], _harmonyHintShown: false,
   _aggressionOdTriggered: false, _kindnessOdTriggered: false,
+  _bugsSeen: false,
+  _beesSeen: false,
   _restedPerson: null,
   baseResources: { food: 6 },
   dataCount: 0, dataCollectedActions: {}, reportReady: false,

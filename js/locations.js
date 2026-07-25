@@ -62,6 +62,10 @@ export function markLinkSeen(locId) {
       state.links.bird_bugs.seenA = true;
       addJournalEntry('Вы увидели Птицу-ящера. Она охотится — пикирует в сторону ручья.', 'new');
      if (!state.links.bugs_river.seenA) { state.links.bugs_river.seenA = true; };
+    if (!state._bugsSeen) {
+      state._bugsSeen = true;
+      addJournalEntry('Вы заметили ядовитых жуков. Они копошатся у гнезда.', 'new');
+    }
     }
   }
   if (locId === 'final') {
@@ -243,16 +247,39 @@ export function getLoc1() {
       state.links.tree_mushrooms.intact = true;
       state.treeRegrow = 0;
       addJournalEntry('Хвощ вырос снова.', 'info');
+
+  // Активный эксперимент: осмотреть корни Хвоща, если ручей загрязнён
+  if (!state.links.river_tree.discovered && state.riverState !== 'clean') {
+    actions.push({
+      id: 'observe_roots_tree',
+      label: 'Осмотреть корни',
+      cost: 1,
+      req: null,
+      scaleType: 'symbiosis',
+      ecosystem: false,
+      effect: [
+        { type: 'discoverLink', linkId: 'river_tree' },
+        { type: 'log', text: 'Корни Хвоща уходят к руслу. Когда вода мутнеет, дерево страдает.' }
+      ]
+    });
+  }
+
       return getLoc1();
     }
     // временно оставим старый код для cut/poisoned, чтобы не перегружать шаг
     return getLoc1_old(); // если нужна поддержка старых состояний
   }
 
+  // Меняем описание, если связь Ручей→Хвощ разрушена
+  let desc = 'Поляна с Хвощом. Кора мерцает в полумраке. Пчёлы кружат у ветвей.';
+  if (state.links.river_tree && !state.links.river_tree.intact) {
+    desc = 'Поляна с Хвощом. Кора потускнела и потрескалась, пульсации почти не видно.';
+  }
+
   const linkedText = allLinksDiscovered() ? getLinkedObjectText('loc1') : '';
 
   return {
-    id: 'loc1', name, desc: 'Поляна с Хвощом. Кора мерцает в полумраке. Пчёлы кружат у ветвей.',
+    id: 'loc1', name, desc: desc,
     sense, objName: 'Хвощ', actions: [...actions, ...joint],
     linkedText: linkedText ? `<div class="linked-object">🔗 ${linkedText}</div>` : ''
   };
@@ -263,6 +290,7 @@ export function getLoc2() {
   const tier = getCycleTier();
   const sense = 'Пахнет нектаром. Над цветами кружат пчёлы, собирая сладкую пыльцу.';
 
+  // ---------- Действия для intact-состояния ----------
   const intactActions = [
     { id: 'watch_bees', label: 'Наблюдать за пчёлами', cost: 1, req: null, scaleType: 'symbiosis', ecosystem: false,
       effect: [
@@ -305,6 +333,22 @@ export function getLoc2() {
     }
   ];
 
+  // Кнопка "Осмотреть воду" в intact-состоянии, если жуки расплодились
+  if (!state.links.bugs_river.discovered && !state.links.bird_bugs.intact) {
+    intactActions.push({
+      id: 'observe_water_bugs',
+      label: 'Осмотреть воду',
+      cost: 0,
+      req: null,
+      scaleType: 'symbiosis',
+      ecosystem: false,
+      effect: [
+        { type: 'discoverLink', linkId: 'bugs_river' },
+        { type: 'log', text: 'Жуки, которых раньше сдерживала птица, теперь кишат в воде. Ручей страдает.' }
+      ]
+    });
+  }
+
   const jointLive = getRelForGroup() >= 3 ? [
     { id: 'joint_nectar', label: '🤝 Собрать образцы нектара вдвоём (совм.)', cost: 2, req: null, scaleType: 'expansion', ecosystem: false,
       effect: [
@@ -316,8 +360,8 @@ export function getLoc2() {
     }
   ] : [];
 
-  // Состояние "цветы собраны" (picked) – еда появится только в следующем цикле
-    if (state.ecosystem.flowers === 'picked') {
+  // ---------- Состояние "цветы собраны" (picked) ----------
+  if (state.ecosystem.flowers === 'picked') {
     if (state.riverState === 'clean') { state.riverState = 'muddy'; addJournalEntry('Ручей помутнел. Цветы исчезли.', 'info'); }
     if (state._flowersRegrow > 0 && state.cycle >= state._flowersRegrow) {
       state.ecosystem.flowers = 'intact';
@@ -327,55 +371,89 @@ export function getLoc2() {
       return getLoc2();
     }
     if (!state._flowersRegrow) { state._flowersRegrow = state.cycle + 1; addJournalEntry('Цветы собраны. Они отрастут через цикл.', 'info'); }
+    const pickedActions = [
+      { id: 'clear_water', label: 'Очистить', cost: 2, req: { item: 'medkit', consume: true, tierMin: 2 }, scaleType: 'kindness', ecosystem: false,
+        effect: [
+          { type: 'addScale', scale: 'kindness', amount: 1 },
+          { type: 'log', text: 'Вода стала чище.' }
+        ]
+      },
+      { id: 'collect_food2', label: 'Собрать личинок из ручья', cost: 1, req: { linkBroken: 'flowers_bees', resourceLoc: 'loc2' }, scaleType: 'expansion', ecosystem: false,
+        effect: [
+          { type: 'addFood', amount: 1 },
+          { type: 'setResourceCollected', loc: 'loc2' },
+          { type: 'log', text: 'Пища собрана.' }
+        ]
+      }
+    ];
+    if (!state.links.bugs_river.discovered && !state.links.bird_bugs.intact) {
+      pickedActions.push({
+        id: 'observe_water_bugs',
+        label: 'Осмотреть воду',
+        cost: 0,
+        req: null,
+        scaleType: 'symbiosis',
+        ecosystem: false,
+        effect: [
+          { type: 'discoverLink', linkId: 'bugs_river' },
+          { type: 'log', text: 'Жуки, которых раньше сдерживала птица, теперь кишат в воде. Ручей страдает.' }
+        ]
+      });
+    }
     return {
       id: 'loc2', name, desc: 'Цветов нет. Вода мутная.', sense: 'Запах сырости. Нектара больше нет.',
-      objName: 'Мутный ручей',
-      actions: [
-        { id: 'clear_water', label: 'Очистить', cost: 2, req: { item: 'medkit', consume: true, tierMin: 2 }, scaleType: 'kindness', ecosystem: false,
-          effect: [
-            { type: 'addScale', scale: 'kindness', amount: 1 },
-            { type: 'log', text: 'Вода стала чище.' }
-          ]
-        },
-        { id: 'collect_food2', label: 'Собрать личинок из ручья', cost: 1, req: { linkBroken: 'flowers_bees', resourceLoc: 'loc2' }, scaleType: 'expansion', ecosystem: false, linkIntact: 'bugs_river',
-          effect: [
-            { type: 'addFood', amount: 1 },
-            { type: 'setResourceCollected', loc: 'loc2' },
-            { type: 'log', text: 'Пища собрана.' }
-          ]
-        }
-      ]
-    };
-  }
-  if (state.ecosystem.flowers === 'poisoned') {
-    if (state.riverState === 'clean' || state.riverState === 'muddy') { state.riverState = 'poisoned'; addJournalEntry('Ручей отравлен. Вода покрыта плёнкой.', 'info'); }
-    return {
-      id: 'loc2', name, desc: 'Цветы почернели. Вода с плёнкой.', sense: 'Химический запах.',
-      objName: 'Отравленный ручей',
-      actions: [
-        { id: 'restore_river', label: 'Прорыть новое русло', cost: 2, req: { item: 'multitool', tierMin: 2 }, scaleType: 'kindness', ecosystem: true,
-          effect: [
-            { type: 'addScale', scale: 'kindness', amount: 2 },
-            { type: 'setRiverState', value: 'muddy' },
-            { type: 'setFlowersRegrow', cycle: state.cycle + 1 },
-            { type: 'log', text: 'Вода потекла по-новому.' }
-          ]
-        },
-        { id: 'collect_food2', label: 'Собрать личинок из ручья', cost: 1, req: { linkBroken: 'flowers_bees', resourceLoc: 'loc2' }, scaleType: 'expansion', ecosystem: false, linkIntact: 'bugs_river',
-          effect: [
-            { type: 'addFood', amount: 1 },
-            { type: 'setResourceCollected', loc: 'loc2' },
-            { type: 'log', text: 'Пища собрана.' }
-          ]
-        }
-      ]
+      objName: 'Мутный ручей', actions: pickedActions
     };
   }
 
+  // ---------- Состояние "цветы отравлены" (poisoned) ----------
+  if (state.ecosystem.flowers === 'poisoned') {
+    if (state.riverState === 'clean' || state.riverState === 'muddy') { state.riverState = 'poisoned'; addJournalEntry('Ручей отравлен. Вода покрыта плёнкой.', 'info'); }
+    const poisonedActions = [
+      { id: 'restore_river', label: 'Прорыть новое русло', cost: 2, req: { item: 'multitool', tierMin: 2 }, scaleType: 'kindness', ecosystem: true,
+        effect: [
+          { type: 'addScale', scale: 'kindness', amount: 2 },
+          { type: 'setRiverState', value: 'muddy' },
+          { type: 'setFlowersRegrow', cycle: state.cycle + 1 },
+          { type: 'log', text: 'Вода потекла по-новому.' }
+        ]
+      },
+      { id: 'collect_food2', label: 'Собрать личинок из ручья', cost: 1, req: { linkBroken: 'flowers_bees', resourceLoc: 'loc2' }, scaleType: 'expansion', ecosystem: false,
+        effect: [
+          { type: 'addFood', amount: 1 },
+          { type: 'setResourceCollected', loc: 'loc2' },
+          { type: 'log', text: 'Пища собрана.' }
+        ]
+      }
+    ];
+    if (!state.links.bugs_river.discovered && !state.links.bird_bugs.intact) {
+      poisonedActions.push({
+        id: 'observe_water_bugs',
+        label: 'Осмотреть воду',
+        cost: 0,
+        req: null,
+        scaleType: 'symbiosis',
+        ecosystem: false,
+        effect: [
+          { type: 'discoverLink', linkId: 'bugs_river' },
+          { type: 'log', text: 'Жуки, которых раньше сдерживала птица, теперь кишат в воде. Ручей страдает.' }
+        ]
+      });
+    }
+    return {
+      id: 'loc2', name, desc: 'Цветы почернели. Вода с плёнкой.', sense: 'Химический запах.',
+      objName: 'Отравленный ручей', actions: poisonedActions
+    };
+  }
+
+  // ---------- Нетронутое состояние (intact) ----------
   const linkedText = allLinksDiscovered() ? getLinkedObjectText('loc2') : '';
+  const waterClean = state.riverState === 'clean';
+  const desc = waterClean ? 'Ручей с кристальной водой. Заросли светящихся цветов.' : 'Ручей помутнел. Вода стала грязной.';
+  const senseText = waterClean ? 'Пахнет нектаром. Над цветами кружат пчёлы, собирая сладкую пыльцу.' : 'Пахнет сыростью. Пчёлы кружат, но их гул звучит тревожно.';
   return {
-    id: 'loc2', name, desc: 'Ручей с кристальной водой. Заросли светящихся цветов.',
-    sense, objName: 'Светящиеся цветы', actions: [...intactActions, ...jointLive],
+    id: 'loc2', name, desc: desc,
+    sense: senseText, objName: 'Светящиеся цветы', actions: [...intactActions, ...jointLive],
     linkedText: linkedText ? `<div class="linked-object">🔗 ${linkedText}</div>` : ''
   };
 }
@@ -545,6 +623,7 @@ export function getLoc4() {
       effect: [
         { type: 'addScale', scale: 'aggression', amount: 2 },
         { type: 'breakLink', linkId: 'bird_bugs' },
+        { type: 'breakLink', linkId: 'mush_bird' },
         { type: 'scheduleEcosystemChange', key: 'bird', value: 'killed' },
         { type: 'addJournal', text: 'Птица убита. Жуки расплодятся.', type: 'info' },
         { type: 'addJournal', text: 'Птица — не просто хищник. Она — регулятор. Без неё жуки заполонят ручей. Вы это увидели.', type: 'discovery' },
@@ -585,6 +664,7 @@ export function getLoc4() {
           effect: [
             { type: 'addScale', scale: 'aggression', amount: 2 },
             { type: 'setBirdReturn', cycle: state.cycle + 2 },
+            { type: 'restoreBugsRiver' },
             { type: 'log', text: 'Жуки уничтожены.' },
             { type: 'restoreBugsRiver' }
           ]

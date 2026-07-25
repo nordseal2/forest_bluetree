@@ -549,6 +549,8 @@ export function resetGame() {
   state.currentGoal = 'Исследовать маршрут и найти дорогу дальше.';
   state._droneBeesUsed = false;
   state._droneBirdUsed = false;
+  state._bugsSeen = false;
+  state._beesSeen = false;
   state.deepContactUsed = false;
   state.nightReaction = '';
   state.nightOdWarning = '';

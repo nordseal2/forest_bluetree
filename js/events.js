@@ -374,16 +374,9 @@ export function getDialog(mainId, secondId, rel) {
 }
 
 export function renderEvening() {
-  // сброс голода и распределение еды выполняются в engine.js (resolveEvening и processEveningData), здесь только рендер
+  const info = state._lastEveningFood || { before: state.baseResources.food, eaten: 0, hungry: [] };
   let html = '<div class="phase-title">🌆 Вечер — Диалог</div>';
-  const foodBefore = state.baseResources.food;
-  const eaten = Math.min(foodBefore, 3);
-  const hungryPeople = [];
-  // временный подсчёт для отображения (основная логика в engine)
-  for (let i = 0; i < state.persons.length; i++) {
-    if (i >= eaten) hungryPeople.push(state.persons[i].name);
-  }
-  html += `<div class="food-info"><h4>🍖 Питание</h4><p>Запасы: было ${foodBefore}, съедено ${eaten}. ${hungryPeople.length > 0 ? 'Голодают: ' + hungryPeople.join(', ') + '. -1 ОД на завтра.' : 'Все сыты.'}</p></div>`;
+  html += `<div class="food-info"><h4>🍖 Питание</h4><p>Запасы: было ${info.before}, съедено ${info.eaten}. ${info.hungry.length > 0 ? 'Голодают: ' + info.hungry.join(', ') + '. -1 ОД на завтра.' : 'Все сыты.'}</p></div>`;
   html += '<div class="section"><h3>Выберите разговор</h3><div class="row">';
   const pairs = [['biolog', 'tech'], ['biolog', 'blogger'], ['tech', 'blogger']];
   const themes = { biolog_tech: 'разговор о страхе и методе', biolog_blogger: 'интервью о прошедшем дне', tech_blogger: 'спор о том, как действовать' };
