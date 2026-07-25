@@ -155,9 +155,5 @@
         .drop-pod-announce{background:#1a2e1a;border:2px solid #3fb950;border-radius:8px;padding:8px 12px;margin-bottom:10px;text-align:center}
         .drop-pod-announce h4{color:#3fb950;margin-bottom:3px;font-size:13px}
         .drop-pod-announce p{font-size:12px;color:#c9d1d9}
-        .tooltip-error::after {
-  background: #da3633 !important;
-  border-color: #f0883e !important;
-  color: #fff !important;}
-        .action-btn.tooltip-error {
-         opacity: 1 !important;}
+        .tooltip-error::after {  background: #da3633 !important;  border-color: #f0883e !important;  color: #fff !important;}
+        .action-btn:disabled.tooltip-error::after { opacity: 1 !important;}

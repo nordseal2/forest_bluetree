@@ -336,8 +336,8 @@ export function startExpedition() {
 export function renderExpedition() {
   const total = 5;
   const step = state.routeProgress;
-  const stepLabels = ['Первая', 'Вторая', 'Третья', 'Четвёртая', 'Финальная'];
-  const locNames = ['Поляна Хвоща', 'Берег ручья', 'Грибная поляна', 'Гнездо птицы-ящера', 'Древо'];
+  const stepLabels = ['Первая','Вторая','Третья','Четвёртая','Финальная'];
+  const locNames = ['Поляна Хвоща','Берег ручья','Грибная поляна','Гнездо птицы-ящера','Древо'];
   let html = '<div class="phase-title">🌲 День — Экспедиция</div>';
 
   const canHaveEncounter = !(state.patternType && state.patternProgress >= 2);
@@ -409,9 +409,26 @@ export function renderExpedition() {
   if (!state.locationDone) {
     const enc = getEncounter(step);
     markLinkSeen(enc.id);
-    const camActions = enc.actions.filter(a => a.id.startsWith('retrieve_camtrap'));
+
+    // Разделяем действия на категории
+    const categories = { observe: [], interact: [], collect: [], special: [] };
+    const allActions = enc.actions.filter(a => !a.joint);
     const jointActions = enc.actions.filter(a => a.joint);
-    const otherActions = enc.actions.filter(a => !camActions.includes(a) && !jointActions.includes(a));
+
+    allActions.forEach(a => {
+      const cat = a.category || 'interact';
+      if (categories[cat]) categories[cat].push(a);
+    });
+
+    // Сортируем внутри "Взаимодействовать": добрые → нейтральные → агрессивные
+    if (categories.interact.length > 0) {
+      categories.interact.sort((a, b) => {
+        const order = { kindness: 1, symbiosis: 2, expansion: 2, aggression: 3 };
+        const oa = order[a.scaleType] || 2;
+        const ob = order[b.scaleType] || 2;
+        return oa - ob;
+      });
+    }
 
     html += `<div class="section"><h3>Локация ${step + 1}: ${enc.name}</h3>`;
     html += `<div class="encounter-box"><p>${enc.desc}</p><div class="sense-text">${enc.sense || ''}</div><p class="obj-name">Объект: ${enc.objName}</p>`;
@@ -429,36 +446,36 @@ export function renderExpedition() {
       state.reactionData = null;
     }
 
+    // Рендерим категории
+    const catLabels = { observe: '🔍 Наблюдать', interact: '🤝 Взаимодействовать', collect: '📦 Собрать', special: '✨ Особые' };
+    for (const [cat, acts] of Object.entries(categories)) {
+      if (acts.length === 0) continue;
+      if (cat === 'collect' && acts.every(a => !checkActionAvailable(a).ok)) continue;
+
+      html += `<div class="action-group"><div class="action-group-label">${catLabels[cat]}</div><div class="actions">`;
+      acts.forEach(a => {
+        const avail = checkActionAvailable(a);
+        const tip = avail.reason ? `data-tooltip="${avail.reason}"` : '';
+        const tipClass = (avail.isError && !avail.ok) ? 'tooltip-error' : '';
+        const cls = `action-btn ${tipClass} ${!avail.ok ? 'locked' : ''}`;
+        html += `<button class="${cls}" ${avail.ok ? '' : 'disabled'} ${tip} onclick="performAction('${a.id}',${a.cost},'${enc.id}')">${a.label} (${a.cost} ОД)${a.req ? ' 🔒' : ''}</button>`;
+      });
+      html += '</div></div>';
+    }
+
+    // Совместные действия
     if (jointActions.length > 0 && !state.jointActionUsed) {
-      html += '<div class="actions">';
+      html += '<div class="action-group"><div class="action-group-label">✨ Особые</div><div class="actions">';
       jointActions.forEach(a => {
         const avail = checkActionAvailable(a);
-        let cls = 'action-btn joint-act';
         const tip = avail.reason ? `data-tooltip="${avail.reason}"` : '';
-        html += `<button class="${cls}${!avail.ok ? ' locked' : ''}" ${avail.ok ? '' : 'disabled'} ${tip} onclick="performJointAction('${a.id}',${a.cost})">${a.label} (${a.cost} ОД)</button>`;
+        html += `<button class="action-btn joint-act ${!avail.ok ? 'locked' : ''}" ${avail.ok ? '' : 'disabled'} ${tip} onclick="performJointAction('${a.id}',${a.cost})">${a.label} (${a.cost} ОД)</button>`;
       });
-      html += '</div>';
+      html += '</div></div>';
     }
 
-    if (otherActions.length > 0 || camActions.length > 0) {
-      html += '<div class="actions">';
-    otherActions.forEach(a => {
-  const avail = checkActionAvailable(a);
-  const tip = avail.reason ? `data-tooltip="${avail.reason}"` : '';
-  const tipClass = (avail.isError && !avail.ok) ? 'tooltip-error' : '';
-  const cls = `action-btn ${tipClass} ${!avail.ok ? 'locked' : ''}`;
-  html += `<button class="${cls}" ${avail.ok ? '' : 'disabled'} ${tip} onclick="performAction('${a.id}',${a.cost},'${enc.id}')">${a.label} (${a.cost} ОД)${a.req ? ' 🔒' : ''}</button>`;
-});
-      camActions.forEach(a => {
-        const avail = checkActionAvailable(a);
-        let cls = 'action-btn';
-        const tip = avail.reason ? `data-tooltip="${avail.reason}"` : '';
-        html += `<button class="${cls}${!avail.ok ? ' locked' : ''}" ${avail.ok ? '' : 'disabled'} ${tip} onclick="performCamtrapAction('${a.id}',${a.cost})">${a.label} (${a.cost} ОД)</button>`;
-      });
-      html += '</div>';
-    }
-
-        const allOdZero = state.selectedExpedition.every(pid => getPerson(pid).od <= 0);
+    // Кнопки перехода
+    const allOdZero = state.selectedExpedition.every(pid => getPerson(pid).od <= 0);
     if (allOdZero) {
       html += `<button class="btn primary" style="margin-top:6px;" onclick="forcedReturnToBase()">Вернуться в лагерь (0 ОД)</button>`;
     } else {
